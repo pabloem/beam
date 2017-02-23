@@ -36,6 +36,7 @@ except ImportError:
 
 class DataflowRunnerTest(unittest.TestCase):
 
+  @unittest.skipIf(base_api is None, 'GCP dependencies are not installed')
   @mock.patch('time.sleep', return_value=None)
   def test_wait_until_finish(self, patched_time_sleep):
     values_enum = dataflow_api.Job.CurrentStateValueValuesEnum
