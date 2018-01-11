@@ -55,7 +55,10 @@ class StateSampler(object):
                sampling_period_ms=DEFAULT_SAMPLING_PERIOD_MS):
     EXECUTION_STATE_SAMPLERS.set_sampler(self)
     self._prefix = prefix
-    self._state_stack = [ScopedState(None, self, None)]
+    unknown_state_name = CounterName('unknown')
+    unknown_state = ScopedState(unknown_state_name, self, None)
+
+    self._state_stack = [unknown_state]
     self.states_by_name = {}
     self.transition_count = 0
     self._counter_factory = counter_factory or CounterFactory()
@@ -82,7 +85,6 @@ class StateSampler(object):
     else:
       output_counter = self._counter_factory.get_counter(counter_name,
                                                          Counter.SUM)
-      print 'Metrics container: ' + str(metrics_container)
       self.states_by_name[counter_name] = ScopedState(
           counter_name, self, output_counter,
           metrics_container=metrics_container)
@@ -125,7 +127,6 @@ class ScopedState(object):
     self.state_sampler = state_sampler
     self.counter = counter
     self.msecs = 0
-    print 'Metrics container: ' + str(metrics_container)
     self.metrics_container = metrics_container
 
   def enter(self):
