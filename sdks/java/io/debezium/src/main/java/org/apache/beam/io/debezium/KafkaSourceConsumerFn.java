@@ -77,8 +77,9 @@ public class KafkaSourceConsumerFn<T> extends DoFn<Map<String, String>, T> {
   private final Class<? extends SourceConnector> connectorClass;
   private final SourceRecordMapper<T> fn;
 
+  private Integer maxRecords;
+
   private static long minutesToRun = -1;
-  private static Integer maxRecords;
   private static DateTime startTime;
   private static final Map<String, RestrictionTracker<OffsetHolder, Map<String, Object>>>
       restrictionTrackers = new ConcurrentHashMap<>();
@@ -107,8 +108,8 @@ public class KafkaSourceConsumerFn<T> extends DoFn<Map<String, String>, T> {
       Class<?> connectorClass, SourceRecordMapper<T> fn, Integer maxRecords) {
     this.connectorClass = (Class<? extends SourceConnector>) connectorClass;
     this.fn = fn;
-    KafkaSourceConsumerFn.maxRecords = maxRecords;
-    LOG.warn("---------------- RUN FOR A NUMBER: {} records", KafkaSourceConsumerFn.maxRecords);
+    this.maxRecords = maxRecords;
+    LOG.warn("---------------- RUN FOR A NUMBER: {} records", maxRecords);
   }
 
   @GetInitialRestriction
@@ -260,14 +261,23 @@ public class KafkaSourceConsumerFn<T> extends DoFn<Map<String, String>, T> {
     public final @Nullable Map<String, ?> offset;
     public final @Nullable List<?> history;
     public final @Nullable Integer fetchedRecords;
+    public final @Nullable Integer maxRecords;
+    OffsetHolder(
+        @Nullable Map<String, ?> offset,
+        @Nullable List<?> history,
+        @Nullable Integer fetchedRecords,
+	@Nullable Integer maxRecords) {
+      this.offset = offset;
+      this.history = history == null ? new ArrayList<>() : history;
+      this.fetchedRecords = fetchedRecords;
+      this.maxRecords = maxRecords;
+    }
 
     OffsetHolder(
         @Nullable Map<String, ?> offset,
         @Nullable List<?> history,
         @Nullable Integer fetchedRecords) {
-      this.offset = offset;
-      this.history = history == null ? new ArrayList<>() : history;
-      this.fetchedRecords = fetchedRecords;
+	this(offset, history, fetchedRecords, -1);
     }
   }
 
@@ -304,17 +314,17 @@ public class KafkaSourceConsumerFn<T> extends DoFn<Map<String, String>, T> {
       long elapsedTime = System.currentTimeMillis() - startTime.getMillis();
       int fetchedRecords =
           this.restriction.fetchedRecords == null ? 0 : this.restriction.fetchedRecords + 1;
-      LOG.debug("------------FETCHED RECORDS {} / MAX RECORDS {}", fetchedRecords, maxRecords);
+      LOG.debug("------------FETCHED RECORDS {} / MAX RECORDS {}", fetchedRecords, this.restriction.maxRecords);
       LOG.debug("-------------- Time running: {} / {}", elapsedTime, (minutesToRun * MILLIS));
       this.restriction = new OffsetHolder(position, this.restriction.history, fetchedRecords);
       LOG.debug("-------------- History: {}", this.restriction.history);
 
-      if (maxRecords == null && minutesToRun == -1) {
+      if (this.restriction.maxRecords == null && minutesToRun == -1) {
         return true;
       }
 
-      if (maxRecords != null) {
-        return fetchedRecords < maxRecords;
+      if (this.restriction.maxRecords != null) {
+        return fetchedRecords < this.restriction.maxRecords;
       }
 
       return elapsedTime < minutesToRun * MILLIS;
